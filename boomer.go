@@ -1,6 +1,7 @@
 package boomer
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
@@ -31,7 +32,8 @@ func Run(tasks ...*Task) {
 				for _, name := range taskNames {
 					if name == task.Name {
 						log.Println("Running " + task.Name)
-						task.Fn()
+						ctx := context.Background()
+						task.Fn(&ctx)
 					}
 				}
 			}

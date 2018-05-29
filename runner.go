@@ -1,8 +1,10 @@
 package boomer
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"runtime/debug"
 	"sync/atomic"
@@ -25,7 +27,7 @@ const (
 // goroutines to run Task.Fn .
 type Task struct {
 	Weight int
-	Fn     func()
+	Fn     func(*context.Context)
 	Name   string
 }
 
@@ -39,7 +41,7 @@ type runner struct {
 	nodeID      string
 }
 
-func (r *runner) safeRun(fn func()) {
+func (r *runner) safeRun(fn func(*context.Context), ctx *context.Context) {
 	defer func() {
 		// don't panic
 		err := recover()
@@ -48,62 +50,107 @@ func (r *runner) safeRun(fn func()) {
 			Events.Publish("request_failure", "unknown", "panic", 0.0, fmt.Sprintf("%v", err))
 		}
 	}()
-	fn()
+	fn(ctx)
 }
 
 func (r *runner) spawnGoRoutines(spawnCount int, quit chan bool) {
 
 	log.Println("Hatching and swarming", spawnCount, "clients at the rate", r.hatchRate, "clients/s...")
-
+	rand.Seed(time.Now().UnixNano())
 	weightSum := 0
 	for _, task := range r.tasks {
 		weightSum += task.Weight
 	}
 
-	for _, task := range r.tasks {
+	for client_id := 1; client_id <= spawnCount; client_id++ {
+		ctx := context.Background()
+		select {
+		case <-quit:
+			// quit hatching goroutine
+			return
+		default:
+			if client_id%r.hatchRate == 0 {
+				time.Sleep(1 * time.Second)
+			}
+			atomic.AddInt32(&r.numClients, 1)
 
-		percent := float64(task.Weight) / float64(weightSum)
-		amount := int(round(float64(spawnCount)*percent, .5, 0))
-
-		if weightSum == 0 {
-			amount = int(float64(spawnCount) / float64(len(r.tasks)))
-		}
-
-		for i := 1; i <= amount; i++ {
-			select {
-			case <-quit:
-				// quit hatching goroutine
-				return
-			default:
-				if i%r.hatchRate == 0 {
-					time.Sleep(1 * time.Second)
-				}
-				atomic.AddInt32(&r.numClients, 1)
-				go func(fn func()) {
-					for {
-						select {
-						case <-quit:
-							return
-						default:
-							if maxRPSEnabled {
-								token := atomic.AddInt64(&maxRPSThreshold, -1)
-								if token < 0 {
-									// max RPS is reached, wait until next second
-									<-maxRPSControlChannel
-								} else {
-									r.safeRun(fn)
-								}
-							} else {
-								r.safeRun(fn)
+			go func() {
+				for {
+					select {
+					case <-quit:
+						return
+					default:
+						total_rate := 0
+						var target_task *Task
+						for _, task := range r.tasks {
+							total_rate += task.Weight
+							lucky_rate := rand.Intn(weightSum)
+							if lucky_rate <= total_rate {
+								target_task = task
+								break
 							}
 						}
+
+						if maxRPSEnabled {
+							token := atomic.AddInt64(&maxRPSThreshold, -1)
+							if token < 0 {
+								// max RPS is reached, wait until next second
+								<-maxRPSControlChannel
+							} else {
+								r.safeRun(target_task.Fn, &ctx)
+							}
+						} else {
+							r.safeRun(target_task.Fn, &ctx)
+						}
 					}
-				}(task.Fn)
-			}
-
+				}
+			}()
 		}
-
 	}
+	//	for _, task := range r.tasks {
+
+	//		percent := float64(task.Weight) / float64(weightSum)
+	//		amount := int(round(float64(spawnCount)*percent, .5, 0))
+
+	//		if weightSum == 0 {
+	//			amount = int(float64(spawnCount) / float64(len(r.tasks)))
+	//		}
+
+	//		for i := 1; i <= amount; i++ {
+	//			select {
+	//			case <-quit:
+	//				// quit hatching goroutine
+	//				return
+	//			default:
+	//				if i%r.hatchRate == 0 {
+	//					time.Sleep(1 * time.Second)
+	//				}
+	//				atomic.AddInt32(&r.numClients, 1)
+	//				go func(fn func()) {
+	//					for {
+	//						select {
+	//						case <-quit:
+	//							return
+	//						default:
+	//							if maxRPSEnabled {
+	//								token := atomic.AddInt64(&maxRPSThreshold, -1)
+	//								if token < 0 {
+	//									// max RPS is reached, wait until next second
+	//									<-maxRPSControlChannel
+	//								} else {
+	//									r.safeRun(fn)
+	//								}
+	//							} else {
+	//								r.safeRun(fn)
+	//							}
+	//						}
+	//					}
+	//				}(task.Fn)
+	//			}
+
+	//		}
+
+	//	}
 
 	r.hatchComplete()
 

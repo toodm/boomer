@@ -1,10 +1,15 @@
 package main
 
-import "github.com/myzhan/boomer"
-import "time"
+import (
+	"context"
+	"fmt"
+	"time"
 
-func foo() {
+	"github.com/toodm/boomer"
+)
 
+func foo(ctx *context.Context) {
+	fmt.Println(ctx)
 	start := boomer.Now()
 	time.Sleep(100 * time.Millisecond)
 	elapsed := boomer.Now() - start
@@ -16,8 +21,8 @@ func foo() {
 	boomer.Events.Publish("request_success", "http", "foo", elapsed, int64(10))
 }
 
-func bar() {
-
+func bar(ctx *context.Context) {
+	fmt.Println(ctx)
 	start := boomer.Now()
 	time.Sleep(100 * time.Millisecond)
 	elapsed := boomer.Now() - start
