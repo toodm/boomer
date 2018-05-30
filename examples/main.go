@@ -9,7 +9,8 @@ import (
 )
 
 func foo(ctx *context.Context) {
-	fmt.Println(ctx)
+	data := (*ctx).Value(boomer.Key4Orm)
+	fmt.Println(data)
 	start := boomer.Now()
 	time.Sleep(100 * time.Millisecond)
 	elapsed := boomer.Now() - start
@@ -22,7 +23,8 @@ func foo(ctx *context.Context) {
 }
 
 func bar(ctx *context.Context) {
-	fmt.Println(ctx)
+	data := (*ctx).Value(boomer.Key4Orm)
+	fmt.Println(data)
 	start := boomer.Now()
 	time.Sleep(100 * time.Millisecond)
 	elapsed := boomer.Now() - start

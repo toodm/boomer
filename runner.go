@@ -64,6 +64,7 @@ func (r *runner) spawnGoRoutines(spawnCount int, quit chan bool) {
 
 	for client_id := 1; client_id <= spawnCount; client_id++ {
 		ctx := context.Background()
+		//		CtxSetValues(&ctx, Key4Orm, &Data4Orm{UserId: client_id})
 		select {
 		case <-quit:
 			// quit hatching goroutine
@@ -74,7 +75,7 @@ func (r *runner) spawnGoRoutines(spawnCount int, quit chan bool) {
 			}
 			atomic.AddInt32(&r.numClients, 1)
 
-			go func() {
+			go func(g_ctx *context.Context) {
 				for {
 					select {
 					case <-quit:
@@ -97,14 +98,14 @@ func (r *runner) spawnGoRoutines(spawnCount int, quit chan bool) {
 								// max RPS is reached, wait until next second
 								<-maxRPSControlChannel
 							} else {
-								r.safeRun(target_task.Fn, &ctx)
+								r.safeRun(target_task.Fn, g_ctx)
 							}
 						} else {
-							r.safeRun(target_task.Fn, &ctx)
+							r.safeRun(target_task.Fn, g_ctx)
 						}
 					}
 				}
-			}()
+			}(&ctx)
 		}
 	}
 	//	for _, task := range r.tasks {
