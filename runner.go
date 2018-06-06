@@ -64,6 +64,7 @@ func (r *runner) spawnGoRoutines(spawnCount int, quit chan bool) {
 
 	for client_id := 1; client_id <= spawnCount; client_id++ {
 		ctx := context.Background()
+		CtxInitialize(&ctx)
 		//		CtxSetValues(&ctx, Key4Orm, &Data4Orm{UserId: client_id})
 		select {
 		case <-quit:
